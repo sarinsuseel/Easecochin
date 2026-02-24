@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kochi Route Finder</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: #f0f2f5;
+        }
+
+        header {
+            background: #1a73e8;
+            color: white;
+            padding: 14px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            position: relative;
+            z-index: 999;
+        }
+
+        #search-panel {
+            position: absolute;
+            top: 70px;
+            right: 16px;
+            z-index: 1000;
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            width: 300px;
+        }
+
+        .search-group {
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        .search-group label {
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 4px;
+            display: block;
+            font-weight: 500;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .search-group input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1.5px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border 0.2s;
+            font-family: 'DM Sans', sans-serif;
+            min-width: 0;
+        }
+
+        .search-group input:focus {
+            border-color: #1a73e8;
+        }
+
+        .search-group input.input-error {
+            border-color: #e74c3c;
+        }
+
+        .search-group input:disabled {
+            background: #f5f5f5;
+            color: #999;
+        }
+
+        .pick-btn {
+            padding: 8px 10px;
+            background: #f0f6ff;
+            border: 1.5px solid #d0e4ff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .pick-btn:hover {
+            background: #dceeff;
+        }
+
+        .pick-btn.active {
+            background: #1a73e8;
+            border-color: #1a73e8;
+        }
+
+        .pick-btn.loading {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1.5px solid #ddd;
+            border-radius: 8px;
+            margin-top: 4px;
+            max-height: 180px;
+            overflow-y: auto;
+            display: none;
+            z-index: 2000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .suggestions div {
+            padding: 10px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            line-height: 1.4;
+        }
+
+        .suggestions div:last-child {
+            border-bottom: none;
+        }
+
+        .suggestions div:hover {
+            background: #f0f6ff;
+            color: #1a73e8;
+        }
+
+        .suggestions .no-results {
+            color: #999;
+            cursor: default;
+            font-style: italic;
+        }
+
+        .suggestions .no-results:hover {
+            background: white;
+            color: #999;
+        }
+
+        .suggestion-name {
+            font-weight: 500;
+            color: #222;
+        }
+
+        .suggestion-sub {
+            font-size: 11px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        button#findRoute {
+            flex: 1;
+            padding: 11px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        button#findRoute:hover {
+            background: #1558b0;
+        }
+
+        button#findRoute:disabled {
+            background: #93b8f5;
+            cursor: not-allowed;
+        }
+
+        button#clearAll {
+            padding: 11px 14px;
+            background: #f5f5f5;
+            color: #555;
+            border: 1.5px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        button#clearAll:hover {
+            background: #ffe8e8;
+            border-color: #e74c3c;
+            color: #e74c3c;
+        }
+
+        #pick-hint {
+            display: none;
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        #route-info {
+            display: none;
+            margin-top: 12px;
+            background: #f0f6ff;
+            border-radius: 10px;
+            padding: 12px 14px;
+            border: 1px solid #d0e4ff;
+        }
+
+        #route-info .info-title {
+            font-size: 12px;
+            color: #1a73e8;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .info-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #222;
+        }
+
+        #status {
+            display: none;
+            margin-top: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        #status.error {
+            background: #fde8e8;
+            color: #c0392b;
+        }
+
+        #status.loading {
+            background: #e8f0fe;
+            color: #1a73e8;
+        }
+
+        #status.warning {
+            background: #fff8e1;
+            color: #e67e22;
+        }
+
+        #status.success {
+            background: #e8f5e9;
+            color: #27ae60;
+        }
+
+        #offline-banner {
+            display: none;
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            background: #e74c3c;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        #map.picking {
+            cursor: crosshair;
+        }
+
+        #map {
+            height: calc(100vh - 50px);
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>🗺️ Kochi Route Finder — No Google Maps</header>
+
+    <div id="offline-banner">⚠️ No internet connection — please check your network</div>
+
+    <div id="search-panel">
+        <div class="search-group">
+            <label>📍 Start Location</label>
+            <div class="input-row">
+                <input type="text" id="startInput" placeholder="Type or pick on map" autocomplete="off" />
+                <button class="pick-btn" id="pickStart" title="Pick on map">📌</button>
+            </div>
+            <div class="suggestions" id="startSuggestions"></div>
+        </div>
+
+        <div class="search-group">
+            <label>🏁 End Location</label>
+            <div class="input-row">
+                <input type="text" id="endInput" placeholder="Type or pick on map" autocomplete="off" />
+                <button class="pick-btn" id="pickEnd" title="Pick on map">📌</button>
+            </div>
+            <div class="suggestions" id="endSuggestions"></div>
+        </div>
+
+        <div class="btn-row">
+            <button id="findRoute">Find Route</button>
+            <button id="clearAll" title="Clear all">🗑️</button>
+        </div>
+
+        <div id="route-info">
+            <div class="info-title">🛣️ Route Summary</div>
+            <div class="info-row">
+                <span class="info-label">📏 Distance</span>
+                <span class="info-value" id="routeDistance">—</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">⏱️ Duration</span>
+                <span class="info-value" id="routeDuration">—</span>
+            </div>
+        </div>
+
+        <div id="status"></div>
+    </div>
+
+    <div id="pick-hint">🖱️ Click anywhere on the map to pick location. Press Esc to cancel.</div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+
+        // ════════════════════════════════════════════════════════════
+        // CONSTANTS
+        // ════════════════════════════════════════════════════════════
+
+        const KOCHI_CENTER = [9.9312, 76.2673];
+        const API_TIMEOUT_MS = 10000;
+        <!-- const OSRM_BASE = 'https://router.project-osrm.org'; -->
+        const OSRM_BASE = 'http://localhost:5000';
+        const PHOTON_BASE = 'https://photon.komoot.io';
+
+
+        // ════════════════════════════════════════════════════════════
+        // DOM CACHE
+        // Cache all DOM elements once at startup.
+        // Avoids repeated document.getElementById() calls on every
+        // event — much faster, especially on slower mobile devices.
+        // ════════════════════════════════════════════════════════════
+
+        const DOM = {
+            startInput: document.getElementById('startInput'),
+            endInput: document.getElementById('endInput'),
+            startSuggestions: document.getElementById('startSuggestions'),
+            endSuggestions: document.getElementById('endSuggestions'),
+            pickStart: document.getElementById('pickStart'),
+            pickEnd: document.getElementById('pickEnd'),
+            findRouteBtn: document.getElementById('findRoute'),
+            clearAllBtn: document.getElementById('clearAll'),
+            routeInfo: document.getElementById('route-info'),
+            routeDistance: document.getElementById('routeDistance'),
+            routeDuration: document.getElementById('routeDuration'),
+            status: document.getElementById('status'),
+            offlineBanner: document.getElementById('offline-banner'),
+            pickHint: document.getElementById('pick-hint'),
+            mapEl: document.getElementById('map'),
+        };
+
+
+        // ════════════════════════════════════════════════════════════
+        // MAP SETUP
+        // ════════════════════════════════════════════════════════════
+
+        const map = L.map('map').setView(KOCHI_CENTER, 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+
+        // ════════════════════════════════════════════════════════════
+        // STATE
+        // ════════════════════════════════════════════════════════════
+
+        let startCoords = null;
+        let endCoords = null;
+        let startMarker = null;
+        let endMarker = null;
+        let routeLine = null;
+        let pickMode = null; // 'start' | 'end' | null
+
+
+        // ════════════════════════════════════════════════════════════
+        // CUSTOM MARKERS
+        // ════════════════════════════════════════════════════════════
+
+        const MARKER_BASE = 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img';
+        const SHADOW_URL = 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png';
+        const ICON_CONFIG = { iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowUrl: SHADOW_URL };
+
+        // Created once — reused every time a marker is placed
+        const greenIcon = new L.Icon({ ...ICON_CONFIG, iconUrl: `${MARKER_BASE}/marker-icon-green.png` });
+        const redIcon = new L.Icon({ ...ICON_CONFIG, iconUrl: `${MARKER_BASE}/marker-icon-red.png` });
+
+
+        // ════════════════════════════════════════════════════════════
+        // NETWORK HELPERS
+        // ════════════════════════════════════════════════════════════
+
+        // Single fetch wrapper used by ALL API calls:
+        // - Adds timeout (AbortController)
+        // - Checks HTTP status
+        // - Returns parsed JSON or throws descriptive error
+        async function fetchWithTimeout(url, ms = API_TIMEOUT_MS) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), ms);
+            try {
+                const res = await fetch(url, { signal: controller.signal });
+                if (!res.ok) throw new Error(`Server error: ${res.status}`);
+                return await res.json();
+            } catch (err) {
+                if (err.name === 'AbortError') throw new Error('Request timed out. Please try again.');
+                throw err;
+            } finally {
+                clearTimeout(timer); // always clean up the timer
+            }
+        }
+
+        function checkOnline() {
+            if (!navigator.onLine) throw new Error('No internet connection. Please check your network.');
+        }
+
+
+        // ════════════════════════════════════════════════════════════
+        // OFFLINE DETECTION
+        // ════════════════════════════════════════════════════════════
+
+        function updateOnlineStatus() {
+            const isOnline = navigator.onLine;
+            DOM.offlineBanner.style.display = isOnline ? 'none' : 'block';
+            DOM.findRouteBtn.disabled = !isOnline;
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus();
+
+
+
+        // ════════════════════════════════════════════════════════════
+        // GEOCODING — Place name → Coordinates
+        // Primary: Nominatim (OSM's official geocoder — very reliable)
+        // Fallback: Photon (if Nominatim fails)
+        // null return = API error | [] return = no results found
+        // ════════════════════════════════════════════════════════════
+
+        async function searchPlace(query) {
+            checkOnline();
+
+            // Try Nominatim first
+            try {
+                const url = `https://nominatim.openstreetmap.org/search` +
+                    `?q=${encodeURIComponent(query)}` +
+                    `&format=json&limit=5&countrycodes=in&accept-language=en`;
+                const data = await fetchWithTimeout(url);
+
+                if (data && data.length > 0) {
+                    // Normalize Nominatim response to match our renderSuggestions format
+                    return data.map(item => {
+                        const parts = item.display_name.split(',');
+                        return {
+                            properties: {
+                                name: parts[0]?.trim() || item.display_name,
+                                street: '',
+                                city: parts[1]?.trim() || '',
+                                state: 'Kerala',
+                                country: 'India',
+                            },
+                            geometry: {
+                                coordinates: [parseFloat(item.lon), parseFloat(item.lat)]
+                            }
+                        };
+                    });
+                }
+                return [];
+
+            } catch (nominatimErr) {
+                console.warn('Nominatim failed, trying Photon:', nominatimErr.message);
+
+                // Fallback: Photon
+                try {
+                    const url = `${PHOTON_BASE}/api/` +
+                        `?q=${encodeURIComponent(query)}` +
+                        `&lat=${KOCHI_CENTER[0]}&lon=${KOCHI_CENTER[1]}&limit=5`;
+                    const data = await fetchWithTimeout(url);
+                    return data.features || [];
+                } catch (photonErr) {
+                    console.warn('Photon also failed:', photonErr.message);
+                    return null; // signals a real API failure to renderSuggestions
+                }
+            }
+        }
+
+
+
+        // ════════════════════════════════════════════════════════════
+        // REVERSE GEOCODING — Coordinates → Place name
+        // ════════════════════════════════════════════════════════════
+
+        async function reverseGeocode(lat, lng) {
+            checkOnline();
+            try {
+                const data = await fetchWithTimeout(`${PHOTON_BASE}/reverse?lat=${lat}&lon=${lng}`);
+
+                if (!data.features?.length) return formatRawCoords(lat, lng);
+
+                const { name, street, city, state } = data.features[0].properties;
+                const label = name || street || '';
+                const subParts = [city, state].filter(Boolean);
+                const sub = subParts.join(', ');
+
+                return label ? (sub ? `${label}, ${sub}` : label) : formatRawCoords(lat, lng);
+
+            } catch (err) {
+                console.warn('Reverse geocode failed:', err.message);
+                return formatRawCoords(lat, lng); // always fallback gracefully
+            }
+        }
+
+        const formatRawCoords = (lat, lng) => `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+
+        // ════════════════════════════════════════════════════════════
+        // OSRM ROUTING
+        // ════════════════════════════════════════════════════════════
+
+        async function getRoute(start, end) {
+            checkOnline();
+
+            if (start[0] === end[0] && start[1] === end[1]) {
+                throw new Error('Start and End locations are the same. Please choose different locations.');
+            }
+
+            // OSRM expects longitude,latitude — opposite of Leaflet's lat,lng
+            const url = `${OSRM_BASE}/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
+            const data = await fetchWithTimeout(url);
+
+            if (data.code !== 'Ok') throw new Error('OSRM could not calculate a route. Please try different locations.');
+            if (!data.routes?.length) throw new Error('No drivable route found between these locations.');
+
+            return data.routes[0];
+        }
+
+
+        // ════════════════════════════════════════════════════════════
+        // MAP HELPERS
+        // ════════════════════════════════════════════════════════════
+
+        function drawRoute(route) {
+            if (routeLine) map.removeLayer(routeLine);
+
+            // GeoJSON is [lng, lat] — flip to [lat, lng] for Leaflet
+            const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+
+            routeLine = L.polyline(latlngs, {
+                color: '#1a73e8', weight: 5, opacity: 0.8, lineJoin: 'round'
+            }).addTo(map);
+
+            map.fitBounds(routeLine.getBounds(), { padding: [60, 60] });
+        }
+
+        // Reusable marker placer — removes old marker before placing new one
+        function placeMarker(existingMarker, coords, icon, popupText) {
+            if (existingMarker) map.removeLayer(existingMarker);
+            return L.marker(coords, { icon }).addTo(map).bindPopup(popupText).openPopup();
+        }
+
+
+        // ════════════════════════════════════════════════════════════
+        // FORMAT HELPERS
+        // ════════════════════════════════════════════════════════════
+
+        function formatDistance(meters) {
+            if (typeof meters !== 'number' || isNaN(meters)) return '—';
+            return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+        }
+
+        function formatDuration(seconds) {
+            if (typeof seconds !== 'number' || isNaN(seconds)) return '—';
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            if (hrs > 0) return `${hrs} hr ${mins} min`;
+            if (mins > 0) return `${mins} min`;
+            return 'Less than a minute';
+        }
+
+
+        // ════════════════════════════════════════════════════════════
+        // UI HELPERS
+        // ════════════════════════════════════════════════════════════
+
+        let statusTimer = null;
+
+        function showStatus(msg, type, autoClearMs = 0) {
+            DOM.status.textContent = msg;
+            DOM.status.className = type;
+            DOM.status.style.display = 'block';
+            if (statusTimer) clearTimeout(statusTimer); // cancel any previous auto-clear
+            if (autoClearMs > 0) statusTimer = setTimeout(hideStatus, autoClearMs);
+        }
+
+        function hideStatus() {
+            DOM.status.style.display = 'none';
+        }
+
+        function show(el) { el.style.display = 'block'; }
+        function hide(el) { el.style.display = 'none'; }
+
+        // Highlights input red briefly to signal validation error
+        // Uses a single timer per input — clears previous one if triggered twice fast
+        const errorTimers = {};
+        function flashInputError(inputEl) {
+            inputEl.classList.add('input-error');
+            if (errorTimers[inputEl.id]) clearTimeout(errorTimers[inputEl.id]);
+            errorTimers[inputEl.id] = setTimeout(
+                () => inputEl.classList.remove('input-error'), 2000
+            );
+        }
+
+        function hideSuggestions() {
+            hide(DOM.startSuggestions);
+            hide(DOM.endSuggestions);
+        }
+
+
+        // ════════════════════════════════════════════════════════════
+        // PICK MODE
+        // ════════════════════════════════════════════════════════════
+
+        function activatePickMode(type) {
+            if (pickMode === type) { deactivatePickMode(); return; }
+            pickMode = type;
+            DOM.mapEl.classList.add('picking');
+            show(DOM.pickHint);
+            DOM.pickStart.classList.toggle('active', type === 'start');
+            DOM.pickEnd.classList.toggle('active', type === 'end');
+        }
+
+        function deactivatePickMode() {
+            pickMode = null;
+            DOM.mapEl.classList.remove('picking');
+            hide(DOM.pickHint);
+            DOM.pickStart.classList.remove('active');
+            DOM.pickEnd.classList.remove('active');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && pickMode) deactivatePickMode();
+        });
+
+        DOM.pickStart.addEventListener('click', () => activatePickMode('start'));
+        DOM.pickEnd.addEventListener('click', () => activatePickMode('end'));
+
+
+        // ════════════════════════════════════════════════════════════
+        // MAP CLICK HANDLER
+        // ════════════════════════════════════════════════════════════
+
+        map.on('click', async (e) => {
+            if (!pickMode) return;
+
+            const { lat, lng } = e.latlng;
+            const type = pickMode;
+            const isStart = type === 'start';
+
+            const inputEl = isStart ? DOM.startInput : DOM.endInput;
+            const pickBtn = isStart ? DOM.pickStart : DOM.pickEnd;
+
+            inputEl.value = '📍 Finding location...';
+            inputEl.disabled = true;
+            pickBtn.textContent = '⏳';
+            pickBtn.classList.add('loading');
+            deactivatePickMode();
+
+            try {
+                inputEl.value = await reverseGeocode(lat, lng);
+
+                if (isStart) {
+                    startCoords = [lat, lng];
+                    startMarker = placeMarker(startMarker, startCoords, greenIcon, '📍 Start');
+                } else {
+                    endCoords = [lat, lng];
+                    endMarker = placeMarker(endMarker, endCoords, redIcon, '🏁 End');
+                }
+
+            } catch (err) {
+                inputEl.value = formatRawCoords(lat, lng);
+                if (isStart) startCoords = [lat, lng];
+                else endCoords = [lat, lng];
+                showStatus('⚠️ Could not get place name, but location is saved.', 'warning', 3000);
+
+            } finally {
+                inputEl.disabled = false;
+                pickBtn.textContent = '📌';
+                pickBtn.classList.remove('loading');
+            }
+        });
+
+
+        // ════════════════════════════════════════════════════════════
+        // SUGGESTIONS DROPDOWN
+        // ════════════════════════════════════════════════════════════
+
+        function renderSuggestions(features, suggestionBox, inputEl, coordsSetter) {
+            suggestionBox.innerHTML = '';
+
+            // null = real API failure | [] = no results found — show different messages
+            if (features === null) {
+                suggestionBox.style.display = 'block';
+                const div = document.createElement('div');
+                div.className = 'no-results';
+                div.textContent = '⚠️ Search service unavailable. Try again shortly.';
+                suggestionBox.appendChild(div);
+                return;
+            }
+
+            if (features.length === 0) {
+                suggestionBox.style.display = 'block';
+                const div = document.createElement('div');
+                div.className = 'no-results';
+                div.textContent = 'No results found. Try a different search.';
+                suggestionBox.appendChild(div);
+                return;
+            }
+
+            suggestionBox.style.display = 'block';
+
+            // Use DocumentFragment — builds all items in memory first,
+            // then inserts into DOM in one operation (faster than appending one by one)
+            const fragment = document.createDocumentFragment();
+
+            features.forEach(feature => {
+                const { name, street, city, state, country } = feature.properties;
+                const label = name || street || 'Unknown Place';
+                const subParts = [city, state, country].filter(Boolean);
+                const sub = subParts.join(', ');
+                const display = sub ? `${label}, ${sub}` : label;
+
+                const div = document.createElement('div');
+                div.innerHTML = `
+          <div class="suggestion-name">${label}</div>
+          ${sub ? `<div class="suggestion-sub">${sub}</div>` : ''}
+        `;
+
+                // mousedown fires before blur — prevents Chrome dropdown close bug
+                div.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    inputEl.value = display;
+                    coordsSetter([
+                        feature.geometry.coordinates[1], // lat
+                        feature.geometry.coordinates[0]  // lng
+                    ]);
+                    hide(suggestionBox);
+                    suggestionBox.innerHTML = '';
+                });
+
+                fragment.appendChild(div);
+            });
+
+            suggestionBox.appendChild(fragment);
+        }
+
+        // Hide on outside click
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#search-panel')) hideSuggestions();
+        });
+
+
+        // ════════════════════════════════════════════════════════════
+        // DEBOUNCE
+        // ════════════════════════════════════════════════════════════
+
+        function debounce(fn, delay) {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn(...args), delay);
+            };
+        }
+
+
+        // ════════════════════════════════════════════════════════════
+        // WIRE UP INPUTS — reusable function, no duplication
+        // ════════════════════════════════════════════════════════════
+
+        function wireInput(inputEl, suggestionsEl, coordsSetter) {
+            inputEl.addEventListener('input', debounce(async (e) => {
+                const query = e.target.value.trim();
+                coordsSetter(null); // reset coords if user types again
+
+                if (query.length < 3) { hide(suggestionsEl); return; }
+
+                const results = await searchPlace(query);
+                renderSuggestions(results, suggestionsEl, e.target, coordsSetter);
+            }, 300));
+        }
+
+        // Pass cached DOM elements directly — no getElementById inside
+        wireInput(DOM.startInput, DOM.startSuggestions, (c) => { startCoords = c; });
+        wireInput(DOM.endInput, DOM.endSuggestions, (c) => { endCoords = c; });
+
+
+        // ════════════════════════════════════════════════════════════
+        // CLEAR ALL
+        // ════════════════════════════════════════════════════════════
+
+        DOM.clearAllBtn.addEventListener('click', () => {
+            DOM.startInput.value = '';
+            DOM.endInput.value = '';
+
+            startCoords = null;
+            endCoords = null;
+
+            if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
+            if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
+            if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+
+            hide(DOM.routeInfo);
+            hideStatus();
+            hideSuggestions();
+            deactivatePickMode();
+
+            map.setView(KOCHI_CENTER, 13);
+        });
+
+
+        // ════════════════════════════════════════════════════════════
+        // FIND ROUTE
+        // ════════════════════════════════════════════════════════════
+
+        DOM.findRouteBtn.addEventListener('click', async () => {
+
+            // Specific validation — tells user exactly what's missing
+            if (!startCoords) {
+                showStatus('⚠️ Please select a Start location.', 'error');
+                flashInputError(DOM.startInput);
+                return;
+            }
+            if (!endCoords) {
+                showStatus('⚠️ Please select an End location.', 'error');
+                flashInputError(DOM.endInput);
+                return;
+            }
+
+            DOM.findRouteBtn.disabled = true;
+            DOM.findRouteBtn.textContent = '⏳ Finding Route...';
+            hide(DOM.routeInfo);
+            showStatus('🔄 Fetching route from OSRM...', 'loading');
+            hideSuggestions();
+
+            try {
+                const route = await getRoute(startCoords, endCoords);
+
+                startMarker = placeMarker(startMarker, startCoords, greenIcon, '📍 Start');
+                endMarker = placeMarker(endMarker, endCoords, redIcon, '🏁 End');
+
+                drawRoute(route);
+
+                DOM.routeDistance.textContent = formatDistance(route.distance);
+                DOM.routeDuration.textContent = formatDuration(route.duration);
+                show(DOM.routeInfo);
+
+                showStatus('✅ Route found!', 'success', 2000);
+
+            } catch (err) {
+                showStatus(`❌ ${err.message}`, 'error');
+                console.error('Route error:', err);
+
+            } finally {
+                DOM.findRouteBtn.disabled = false;
+                DOM.findRouteBtn.textContent = 'Find Route';
+            }
+        });
+
+    </script>
+</body>
+
+</html>
