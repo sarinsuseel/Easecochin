@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Driver View — Kochi Route</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500&display=swap"
+        rel="stylesheet" />
+
+    <style>
+        :root {
+            --green: #00c853;
+            --dark: #0a0f0d;
+            --card: #111a14;
+            --border: #1e2e22;
+            --muted: #4a6652;
+            --text: #e8f5ea;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--dark);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Header ── */
+        header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 999;
+            flex-shrink: 0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo {
+            width: 36px;
+            height: 36px;
+            background: var(--green);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .header-title {
+            font-family: 'Syne', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .header-sub {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        /* Status badge */
+        #statusBadge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: var(--border);
+            color: var(--muted);
+            transition: all 0.3s;
+        }
+
+        #statusBadge.active {
+            background: rgba(0, 200, 83, 0.15);
+            color: var(--green);
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--muted);
+            transition: all 0.3s;
+        }
+
+        #statusBadge.active .dot {
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.6;
+                transform: scale(1.3);
+            }
+        }
+
+        /* ── Map ── */
+        #map {
+            flex: 1;
+            width: 100%;
+        }
+
+        /* ── Bottom Panel ── */
+        #panel {
+            background: var(--card);
+            border-top: 1px solid var(--border);
+            padding: 16px 20px;
+            flex-shrink: 0;
+            z-index: 999;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .stat-box {
+            background: var(--dark);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-family: 'Syne', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .stat-value.green {
+            color: var(--green);
+        }
+
+        /* Toggle button */
+        #toggleBtn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Syne', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--green);
+            color: #000;
+            letter-spacing: 0.5px;
+        }
+
+        #toggleBtn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        #toggleBtn.stop {
+            background: #ff1744;
+            color: white;
+        }
+
+        #toggleBtn:disabled {
+            background: var(--border);
+            color: var(--muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Error message */
+        #errorMsg {
+            display: none;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(255, 23, 68, 0.1);
+            border: 1px solid rgba(255, 23, 68, 0.3);
+            border-radius: 8px;
+            font-size: 12px;
+            color: #ff6b8a;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="header-left">
+            <div class="logo">🚗</div>
+            <div>
+                <div class="header-title">Driver Mode</div>
+                <div class="header-sub">Kochi Route Tracker</div>
+            </div>
+        </div>
+        <div id="statusBadge">
+            <div class="dot"></div>
+            <span id="statusText">Offline</span>
+        </div>
+    </header>
+
+    <div id="map"></div>
+
+    <div id="panel">
+        <div class="stats-row">
+            <div class="stat-box">
+                <div class="stat-label">Latitude</div>
+                <div class="stat-value" id="statLat">—</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Longitude</div>
+                <div class="stat-value" id="statLng">—</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Accuracy</div>
+                <div class="stat-value green" id="statAcc">—</div>
+            </div>
+        </div>
+
+        <button id="toggleBtn">🟢 Start Sharing Location</button>
+        <div id="errorMsg"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, set } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // ════════════════════════════════════════════════════════════
+        // FIREBASE CONFIG
+        // ════════════════════════════════════════════════════════════
+
+        const firebaseConfig = {
+            databaseURL: 'https://kochi-route-poc-default-rtdb.asia-southeast1.firebasedatabase.app'
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+
+        // ════════════════════════════════════════════════════════════
+        // MAP SETUP
+        // ════════════════════════════════════════════════════════════
+
+        const KOCHI_CENTER = [9.9312, 76.2673];
+
+        const map = L.map('map', { zoomControl: true }).setView(KOCHI_CENTER, 15);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Driver marker — green pulsing dot
+        const driverIcon = L.divIcon({
+            className: '',
+            html: `<div style="
+        width:18px; height:18px;
+        background:#00c853;
+        border:3px solid white;
+        border-radius:50%;
+        box-shadow:0 0 12px #00c853;
+      "></div>`,
+            iconSize: [18, 18],
+            iconAnchor: [9, 9]
+        });
+
+        let driverMarker = null;
+        let accuracyCircle = null;
+
+
+        // ════════════════════════════════════════════════════════════
+        // DOM CACHE
+        // ════════════════════════════════════════════════════════════
+
+        const DOM = {
+            toggleBtn: document.getElementById('toggleBtn'),
+            statusBadge: document.getElementById('statusBadge'),
+            statusText: document.getElementById('statusText'),
+            statLat: document.getElementById('statLat'),
+            statLng: document.getElementById('statLng'),
+            statAcc: document.getElementById('statAcc'),
+            errorMsg: document.getElementById('errorMsg'),
+        };
+
+
+        // ════════════════════════════════════════════════════════════
+        // STATE
+        // ════════════════════════════════════════════════════════════
+
+        let isSharing = false;
+        let watchId = null;
+
+
+        // ════════════════════════════════════════════════════════════
+        // LOCATION HANDLER
+        // ════════════════════════════════════════════════════════════
+
+        function onLocationUpdate(position) {
+            const { latitude: lat, longitude: lng, accuracy } = position.coords;
+
+            // Update stats
+            DOM.statLat.textContent = lat.toFixed(5);
+            DOM.statLng.textContent = lng.toFixed(5);
+            DOM.statAcc.textContent = `${Math.round(accuracy)}m`;
+
+            // Update marker on map
+            if (driverMarker) {
+                driverMarker.setLatLng([lat, lng]);
+            } else {
+                driverMarker = L.marker([lat, lng], { icon: driverIcon }).addTo(map);
+            }
+
+            // Show accuracy circle
+            if (accuracyCircle) {
+                accuracyCircle.setLatLng([lat, lng]).setRadius(accuracy);
+            } else {
+                accuracyCircle = L.circle([lat, lng], {
+                    radius: accuracy,
+                    color: '#00c853',
+                    fillColor: '#00c853',
+                    fillOpacity: 0.08,
+                    weight: 1
+                }).addTo(map);
+            }
+
+            // Pan map to follow driver
+            map.panTo([lat, lng]);
+
+            // Push to Firebase
+            set(ref(db, 'driver/location'), {
+                lat,
+                lng,
+                accuracy,
+                timestamp: Date.now()
+            }).catch(err => showError('Firebase sync failed: ' + err.message));
+        }
+
+        function onLocationError(err) {
+            const messages = {
+                1: 'Location permission denied. Please allow location access.',
+                2: 'Location unavailable. Check your GPS.',
+                3: 'Location request timed out. Please try again.'
+            };
+            showError(messages[err.code] || 'Unknown location error.');
+            stopSharing();
+        }
+
+
+        // ════════════════════════════════════════════════════════════
+        // START / STOP SHARING
+        // ════════════════════════════════════════════════════════════
+
+        function startSharing() {
+            if (!navigator.geolocation) {
+                showError('Geolocation is not supported by your browser.');
+                return;
+            }
+
+            hideError();
+            isSharing = true;
+
+            // Update UI
+            DOM.toggleBtn.textContent = '🔴 Stop Sharing';
+            DOM.toggleBtn.classList.add('stop');
+            DOM.statusBadge.classList.add('active');
+            DOM.statusText.textContent = 'Live';
+
+            // Start watching position
+            watchId = navigator.geolocation.watchPosition(
+                onLocationUpdate,
+                onLocationError,
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0      // always get fresh location
+                }
+            );
+        }
+
+        function stopSharing() {
+            isSharing = false;
+
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+
+            // Clear Firebase location
+            set(ref(db, 'driver/location'), null);
+
+            // Update UI
+            DOM.toggleBtn.textContent = '🟢 Start Sharing Location';
+            DOM.toggleBtn.classList.remove('stop');
+            DOM.statusBadge.classList.remove('active');
+            DOM.statusText.textContent = 'Offline';
+            DOM.statLat.textContent = '—';
+            DOM.statLng.textContent = '—';
+            DOM.statAcc.textContent = '—';
+        }
+
+
+        // ════════════════════════════════════════════════════════════
+        // UI HELPERS
+        // ════════════════════════════════════════════════════════════
+
+        function showError(msg) {
+            DOM.errorMsg.textContent = '⚠️ ' + msg;
+            DOM.errorMsg.style.display = 'block';
+        }
+
+        function hideError() {
+            DOM.errorMsg.style.display = 'none';
+        }
+
+
+        // ════════════════════════════════════════════════════════════
+        // TOGGLE BUTTON
+        // ════════════════════════════════════════════════════════════
+
+        DOM.toggleBtn.addEventListener('click', () => {
+            if (isSharing) stopSharing();
+            else startSharing();
+        });
+
+    </script>
+</body>
+
+</html>
